@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +42,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef hlpuart1;
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 int n;
@@ -56,7 +60,9 @@ int Button_state_clr = 0; //state clear
 int guessNumber = 0; //input number
 int guessCount = 3; //count1-3
 int LED[3] = {0,0,0}; //LED
-
+uint8_t RxBuffer[1]; //number
+int Trn_state = 0; //state transmit
+//uint8_t TxBuffer[20];
 struct _ButMtx_Struct
 {
 	GPIO_TypeDef* Port;
@@ -80,11 +86,14 @@ struct _ButMtx_Struct BMX_R[3] = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_LPUART1_UART_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void ButtonMatrixRead();
 void CheckNumber();
 void CheckGuess();
+void UARTDMAConfig();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,7 +130,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_LPUART1_UART_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -130,9 +141,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	UARTDMAConfig();
 	static uint32_t BTMX_TimeStamp = 0;
 	if(HAL_GetTick() > BTMX_TimeStamp)
 	{
@@ -147,10 +160,13 @@ int main(void)
 	}
 	if(mode == 1)
 	{
+
 	  	CheckNumber();
 	  	CheckGuess();
 	}
   }
+
+
   /* USER CODE END 3 */
 }
 
@@ -244,6 +260,74 @@ static void MX_LPUART1_UART_Init(void)
   /* USER CODE BEGIN LPUART1_Init 2 */
 
   /* USER CODE END LPUART1_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_2;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
 
 }
 
@@ -425,47 +509,105 @@ void CheckNumber(){
 void CheckGuess(){
 	if(guessCount == 3){
 		  n = 0;
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n+1]);
-		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n+2]);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount-3]);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount-2]);
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[guessCount-1]);
 	}
-	else if(guessCount == 2){
-		n = 1;
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n+1]);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n-2]);
+//	if(guessCount > -1 && guessCount < 3){
+//		LED[guessCount+1] = 1;
+//		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount+1]);
+//	}
+
+	if(ButtonState == 128){
+		Button_state_ok = 1;
+		Trn_state = 0;
+
 	}
-	else if(guessCount == 1){
-		n = 1;
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n-1]);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n-2]);
-	}
-
-
-
-
-	if(ButtonState == 128){Button_state_ok = 1;}
 	if(Button_state_ok == 1 && ButtonState == 0){
 
-		if(memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0){
+		if(secretNumber==guessNumber){
+			HAL_UART_Transmit(&hlpuart1, "Correct!\n\r", strlen("Correct!\n\r"),5);
+
 			secretNumber = rand()%9;
 			Button_state_ok = 0;
 			guessNumber = 0;
-		}else if(memcmp(secretNumber,guessNumber,sizeof(secretNumber)) != 0){
-			guessCount--;
-			Button_state_ok = 0;
-			guessNumber = 0;
-		}
+
+		}else if(secretNumber!=guessNumber){
+
+			if(Trn_state == 0){
+				if(secretNumber > guessNumber)
+				{
+					Trn_state = 1;
+					guessCount--;
+					Button_state_ok = 0;
+					guessNumber = 0;
+					LED[guessCount] = 1;
+					HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
+				}
+				if(secretNumber < guessNumber)
+				{
+					Trn_state = 1;
+					guessCount--;
+					Button_state_ok = 0;
+					guessNumber = 0;
+					LED[guessCount] = 1;
+					HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
+				}
+
+			}
+//			guessCount--;
+//			Button_state_ok = 0;
+//			guessNumber = 0;
+//			LED[guessCount] = 1;
+			if(guessCount == 2){HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount]);}
+			if(guessCount == 1){HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount]);}
+			if(guessCount == 0)
+			{
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[guessCount]);
+				guessCount = 3;
+//				LED[0] = 0;
+//				LED[1] = 0;
+//				LED[2] = 0;
+			}
+
+//			if(Trn_state == 0){
+//					if(secretNumber > guessNumber)
+//					{
+//						Trn_state = 1;
+//						HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
+//					}
+//					if(secretNumber < guessNumber)
+//					{
+//						Trn_state = 1;
+//						HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
+//					}
+//					if(secretNumber == guessNumber)
+//					{
+//						Trn_state = 1;
+//					}
+//				}
+//		}
 
 //		Button_state_ok = 0;
 //		Button = 0; //ok
-	}
-	if(guessCount == 0){
-		secretNumber = rand()%9;
 
-
-	}
+//	if(Trn_state == 0){
+//		if(secretNumber > guessNumber)
+//		{
+//			Trn_state = 1;
+//			HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
+//		}
+//		if(secretNumber < guessNumber)
+//		{
+//			Trn_state = 1;
+//			HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
+//		}
+//		if(secretNumber == guessNumber)
+//		{
+//			Trn_state = 1;
+//			HAL_UART_Transmit(&hlpuart1, "Correct!\n\r", strlen("Correct!\n\r"),5);
+//		}
+//	}
 
 
 	if(ButtonState == 2048){
@@ -473,6 +615,24 @@ void CheckGuess(){
 			Button_state_clr = 0;
 		}
 	}
+}
+	}
+void UARTDMAConfig()
+{
+	//start UART in DMA Mode
+	HAL_UART_Receive_DMA(&hlpuart1, RxBuffer, 1);
+}
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//	if(huart == &huart1)
+//	{
+//		//(for string only) Add string stop symbol \e to end string
+//			RxBuffer [1] = '\0';
+//		//return received char
+//		sprintf((char*) TxBuffer, "Received: %s\r\n", RxBuffer);
+//		HAL_UART_Transmit_DMA(&huart1, TxBuffer, strlen((char*)TxBuffer));
+//	}
+//}
 //	if(ButtonState == 128 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0){
 //		Button = 0; //ok
 //	}
