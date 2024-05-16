@@ -49,8 +49,12 @@ uint16_t Number = 0; //button 0-9
 int b = 0; //B1(start)
 int mode = 0; // mode check
 int state = 0; //state Button matrix
+int Button = 0; //ok,clear
+int Button_state_ok = 0; //state ok
+int Button_state_clr = 0; //state clear
+
 int guessNumber = 0; //input number
-int guessCount[3] = 0; //count1-3
+int guessCount = 3; //count1-3
 struct _ButMtx_Struct
 {
 	GPIO_TypeDef* Port;
@@ -125,25 +129,27 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  static uint32_t BTMX_TimeStamp = 0;
-	  	  if(HAL_GetTick() > BTMX_TimeStamp)
-	  	  {
-	  	  	BTMX_TimeStamp = HAL_GetTick() + 25; //next scan in 25 ms
-	  	  	ButtonMatrixRead();
-	  	  }
-	  b = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13); //start button
-	  GPIO_PinState S1 = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6); //Ok button
-	  if(b == 1 && mode == 0)
-	  {
-		  secretNumber = rand()%99; // Generate a random number between 0 and 9
-		  mode = 1;
-	  }
-	  if(mode == 1)
-	  {
-		  CheckNumber();
-		  CheckGuess();
-	  }
+
     /* USER CODE BEGIN 3 */
+	static uint32_t BTMX_TimeStamp = 0;
+	if(HAL_GetTick() > BTMX_TimeStamp)
+	{
+	    BTMX_TimeStamp = HAL_GetTick() + 25; //next scan in 25 ms
+	  	ButtonMatrixRead();
+	}
+	b = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13); //start button
+//	S1 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6); //Ok button
+//	S2 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5); //clear button
+	if(b == 1 && mode == 0)
+	{
+	  	secretNumber = rand()%9; // Generate a random number between 0 and 9
+	  	mode = 1;
+	}
+	if(mode == 1)
+	{
+	  	CheckNumber();
+	  	CheckGuess();
+	}
   }
   /* USER CODE END 3 */
 }
@@ -259,7 +265,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|GPIO_PIN_4, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_SET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -267,12 +279,50 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : PC0 PC1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA1 PA4 LD2_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_4|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA7 PA9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB10 PB4 PB5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_4|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
@@ -307,42 +357,61 @@ void CheckNumber(){
 	if(ButtonState == 8)
 		{
 			Number = 0;
+			state = 1;
 		}
 		else if(ButtonState == 4)
 		{
 			Number = 1;
+			state = 1;
+
 		}
 		else if(ButtonState == 64)
 		{
 			Number = 2;
+			state = 1;
+
 		}
 		else if(ButtonState == 1024)
 		{
 			Number = 3;
+			state = 1;
+
 		}
 		else if(ButtonState == 2)
 	    {
 			Number = 4;
+			state = 1;
+
 		}
 		else if(ButtonState == 32)
 		{
 			Number = 5;
+			state = 1;
+
 		}
 		else if(ButtonState == 512)
 		{
 			Number = 6;
+			state = 1;
+
 		}
 		else if(ButtonState == 1)
 		{
 			Number = 7;
+			state = 1;
+
 		}
 		else if(ButtonState == 16)
 		{
 			Number = 8;
+			state = 1;
+
 		}
 		else if(ButtonState == 256)
 		{
 			Number = 9;
+			state = 1;
+
 		}
 	if(state == 1)
 	{
@@ -352,12 +421,50 @@ void CheckNumber(){
 				state = 0;
 			}
 	}
-void CheckGuess(){
-	if(S1 == 1 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0) //S1_OK
-			{
-				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,GPIO_PIN_SET); //ไฟติด
-			}
 }
+void CheckGuess(){
+	if(ButtonState == 128){Button_state_ok = 1;}
+	if(Button_state_ok == 1 && ButtonState == 0){
+
+		if(memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0){
+			secretNumber = rand()%9;
+			Button_state_ok = 0;
+			guessNumber = 0;
+		}else if(memcmp(secretNumber,guessNumber,sizeof(secretNumber)) != 0){
+			guessCount--;
+			Button_state_ok = 0;
+			guessNumber = 0;
+		}
+
+//		Button_state_ok = 0;
+//		Button = 0; //ok
+	}
+	if(guessCount == 0){
+		secretNumber = rand()%9;
+
+
+	}
+
+
+	if(ButtonState == 2048){
+			Button = 1; //clear
+			Button_state_clr = 0;
+		}
+	}
+//	if(ButtonState == 128 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0){
+//		Button = 0; //ok
+//	}
+//	else if(ButtonState == 128 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) != 0){
+//		Button = 1; //clear
+//		guessCount--;
+//	}
+
+//	if(S1 == 1 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0) //S1_OK
+//		{
+//			guessCount--;
+//			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,GPIO_PIN_SET); //ไฟติด
+//		}
+
 /* USER CODE END 4 */
 
 /**
