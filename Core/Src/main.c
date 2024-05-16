@@ -32,7 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define EEPROM_ADDR 0b10100000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -41,8 +41,14 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
+DMA_HandleTypeDef hdma_i2c1_tx;
+
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_lpuart1_rx;
+DMA_HandleTypeDef hdma_lpuart1_tx;
 DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
@@ -62,7 +68,9 @@ int guessCount = 3; //count1-3
 int LED[3] = {0,0,0}; //LED
 uint8_t RxBuffer[1]; //number
 int Trn_state = 0; //state transmit
-//uint8_t TxBuffer[20];
+uint8_t eepromExampleWriteFlag = 0;
+uint8_t eepromExampleReadFlag = 0;
+uint8_t eepromDataReadBack[4];
 struct _ButMtx_Struct
 {
 	GPIO_TypeDef* Port;
@@ -81,6 +89,7 @@ struct _ButMtx_Struct BMX_R[3] = {
 	{GPIOB,GPIO_PIN_4},
 	{GPIOB,GPIO_PIN_10},
 };
+static uint8_t data[3] = { 0xff, 0xff, 0xff };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,8 +98,10 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 void ButtonMatrixRead();
+void RandomNumber();
 void CheckNumber();
 void CheckGuess();
 void UARTDMAConfig();
@@ -133,8 +144,10 @@ int main(void)
   MX_DMA_Init();
   MX_LPUART1_UART_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_Delay(300);
+  UARTDMAConfig();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -145,7 +158,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	UARTDMAConfig();
+	EEPROMWriteExample();
+	EEPROMReadExample(eepromDataReadBack, 3);
 	static uint32_t BTMX_TimeStamp = 0;
 	if(HAL_GetTick() > BTMX_TimeStamp)
 	{
@@ -217,6 +231,54 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x30A0A7FB;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief LPUART1 Initialization Function
   * @param None
   * @retval None
@@ -234,7 +296,7 @@ static void MX_LPUART1_UART_Init(void)
   hlpuart1.Instance = LPUART1;
   hlpuart1.Init.BaudRate = 115200;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
-  hlpuart1.Init.StopBits = UART_STOPBITS_1;
+  hlpuart1.Init.StopBits = UART_STOPBITS_2;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
   hlpuart1.Init.Mode = UART_MODE_TX_RX;
   hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
@@ -328,6 +390,18 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
 
 }
 
@@ -437,6 +511,10 @@ void ButtonMatrixRead(){
 	HAL_GPIO_WritePin(BMX_R[nextX].Port, BMX_R[nextX].Pin, GPIO_PIN_RESET);
 	X = nextX;
 }
+void RandomNumber(){
+	rand(HAL_GetTick());
+	secretNumber = rand()%9;
+}
 void CheckNumber(){
 	if(ButtonState == 8)
 		{
@@ -513,6 +591,18 @@ void CheckGuess(){
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount-2]);
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[guessCount-1]);
 	}
+	if(RxBuffer[0] == 'r'){
+		guessCount = 3;
+		LED[0] = 0;
+		LED[1] = 0;
+		LED[2] = 0;
+		RxBuffer[0] = 0;
+		HAL_UART_Transmit(&hlpuart1, "Reset!\n\r", strlen("Reset!\n\r"),5);
+		RandomNumber();
+		guessNumber = 0;
+		guessCount = 3;
+
+	}
 //	if(guessCount > -1 && guessCount < 3){
 //		LED[guessCount+1] = 1;
 //		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount+1]);
@@ -528,7 +618,7 @@ void CheckGuess(){
 		if(secretNumber==guessNumber){
 			HAL_UART_Transmit(&hlpuart1, "Correct!\n\r", strlen("Correct!\n\r"),5);
 
-			secretNumber = rand()%9;
+			RandomNumber();
 			Button_state_ok = 0;
 			guessNumber = 0;
 
@@ -559,56 +649,23 @@ void CheckGuess(){
 //			Button_state_ok = 0;
 //			guessNumber = 0;
 //			LED[guessCount] = 1;
-			if(guessCount == 2){HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount]);}
-			if(guessCount == 1){HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount]);}
+			if(guessCount == 2){
+				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount]);
+				data[guessCount] = 0x00;
+			}
+			if(guessCount == 1){
+				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount]);
+				data[guessCount] = 0x00;
+			}
 			if(guessCount == 0)
 			{
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[guessCount]);
+				data[guessCount] = 0x00;
 				guessCount = 3;
 //				LED[0] = 0;
 //				LED[1] = 0;
 //				LED[2] = 0;
 			}
-
-//			if(Trn_state == 0){
-//					if(secretNumber > guessNumber)
-//					{
-//						Trn_state = 1;
-//						HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
-//					}
-//					if(secretNumber < guessNumber)
-//					{
-//						Trn_state = 1;
-//						HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
-//					}
-//					if(secretNumber == guessNumber)
-//					{
-//						Trn_state = 1;
-//					}
-//				}
-//		}
-
-//		Button_state_ok = 0;
-//		Button = 0; //ok
-
-//	if(Trn_state == 0){
-//		if(secretNumber > guessNumber)
-//		{
-//			Trn_state = 1;
-//			HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
-//		}
-//		if(secretNumber < guessNumber)
-//		{
-//			Trn_state = 1;
-//			HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
-//		}
-//		if(secretNumber == guessNumber)
-//		{
-//			Trn_state = 1;
-//			HAL_UART_Transmit(&hlpuart1, "Correct!\n\r", strlen("Correct!\n\r"),5);
-//		}
-//	}
-
 
 	if(ButtonState == 2048){
 			Button = 1; //clear
@@ -622,31 +679,21 @@ void UARTDMAConfig()
 	//start UART in DMA Mode
 	HAL_UART_Receive_DMA(&hlpuart1, RxBuffer, 1);
 }
-//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-//{
-//	if(huart == &huart1)
-//	{
-//		//(for string only) Add string stop symbol \e to end string
-//			RxBuffer [1] = '\0';
-//		//return received char
-//		sprintf((char*) TxBuffer, "Received: %s\r\n", RxBuffer);
-//		HAL_UART_Transmit_DMA(&huart1, TxBuffer, strlen((char*)TxBuffer));
-//	}
-//}
-//	if(ButtonState == 128 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0){
-//		Button = 0; //ok
-//	}
-//	else if(ButtonState == 128 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) != 0){
-//		Button = 1; //clear
-//		guessCount--;
-//	}
-
-//	if(S1 == 1 && memcmp(secretNumber,guessNumber,sizeof(secretNumber)) == 0) //S1_OK
-//		{
-//			guessCount--;
-//			//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,GPIO_PIN_SET); //ไฟติด
-//		}
-
+void EEPROMWriteExample()
+{
+	if (eepromExampleWriteFlag && hi2c1.State == HAL_I2C_STATE_READY) {
+		//static uint8_t data[4] = { 0xff, 0x00, 0x55, 0xaa };
+		HAL_I2C_Mem_Write_IT(&hi2c1, EEPROM_ADDR, 0x2C, I2C_MEMADD_SIZE_16BIT,data, 3);
+		eepromExampleWriteFlag = 0;
+	}
+}
+void EEPROMReadExample(uint8_t *Rdata, uint16_t len)
+{
+	if (eepromExampleReadFlag && hi2c1.State == HAL_I2C_STATE_READY) {
+		HAL_I2C_Mem_Read_IT(&hi2c1, EEPROM_ADDR, 0x2c, I2C_MEMADD_SIZE_16BIT,Rdata, len);
+		eepromExampleReadFlag = 0;
+	}
+}
 /* USER CODE END 4 */
 
 /**
