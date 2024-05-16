@@ -53,6 +53,7 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
+uint8_t data[3] = { 0x00, 0x00, 0x00 };
 int n;
 uint16_t ButtonState = 0;
 int secretNumber; //random_number 0-9
@@ -70,11 +71,12 @@ uint8_t RxBuffer[1]; //number
 int Trn_state = 0; //state transmit
 uint8_t eepromExampleWriteFlag = 0;
 uint8_t eepromExampleReadFlag = 0;
-uint8_t eepromDataReadBack[4];
+uint8_t eepromDataReadBack[3];
 struct _ButMtx_Struct
 {
 	GPIO_TypeDef* Port;
 	uint16_t Pin;
+
 };
 
 struct _ButMtx_Struct BMX_L[4] = {
@@ -89,7 +91,7 @@ struct _ButMtx_Struct BMX_R[3] = {
 	{GPIOB,GPIO_PIN_4},
 	{GPIOB,GPIO_PIN_10},
 };
-static uint8_t data[3] = { 0xff, 0xff, 0xff };
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -148,6 +150,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_Delay(300);
   UARTDMAConfig();
+
+//  HAL_Delay(100);
+//  EEPROMWriteExample();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -171,12 +176,16 @@ int main(void)
 	{
 	  	secretNumber = rand()%9; // Generate a random number between 0 and 9
 	  	mode = 1;
+	  	data[0] = 0xff;
+	  	data[1] = 0xff;
+	  	data[2] = 0xff;
+
 	}
 	if(mode == 1)
 	{
-
 	  	CheckNumber();
 	  	CheckGuess();
+
 	}
   }
 
@@ -601,6 +610,7 @@ void CheckGuess(){
 		RandomNumber();
 		guessNumber = 0;
 		guessCount = 3;
+//		eepromExampleReadFlag = 1;
 
 	}
 //	if(guessCount > -1 && guessCount < 3){
@@ -614,6 +624,7 @@ void CheckGuess(){
 
 	}
 	if(Button_state_ok == 1 && ButtonState == 0){
+
 
 		if(secretNumber==guessNumber){
 			HAL_UART_Transmit(&hlpuart1, "Correct!\n\r", strlen("Correct!\n\r"),5);
@@ -631,6 +642,7 @@ void CheckGuess(){
 					guessCount--;
 					Button_state_ok = 0;
 					guessNumber = 0;
+					data[guessCount] = 0x00;
 					LED[guessCount] = 1;
 					HAL_UART_Transmit(&hlpuart1, "Too high!\n\r", strlen("Too high!\n\r"),5);
 				}
@@ -640,6 +652,7 @@ void CheckGuess(){
 					guessCount--;
 					Button_state_ok = 0;
 					guessNumber = 0;
+					data[guessCount] = 0x00;
 					LED[guessCount] = 1;
 					HAL_UART_Transmit(&hlpuart1, "Too low!\n\r", strlen("Too low!\n\r"),5);
 				}
@@ -649,19 +662,38 @@ void CheckGuess(){
 //			Button_state_ok = 0;
 //			guessNumber = 0;
 //			LED[guessCount] = 1;
-			if(guessCount == 2){
+			if(guessCount == 2 && data[2] == 0){
 				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[guessCount]);
-				data[guessCount] = 0x00;
+
+
+				eepromExampleWriteFlag = 1;
+				HAL_Delay(500);
+
+
+
 			}
-			if(guessCount == 1){
+			if(guessCount == 1 && data[1] == 0){
 				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[guessCount]);
-				data[guessCount] = 0x00;
+
+				eepromExampleWriteFlag = 1;
+				HAL_Delay(500);
+//				data[guessCount] = 0x00;
+
+//				eepromExampleWriteFlag = 1;
+//				HAL_Delay(500);
 			}
-			if(guessCount == 0)
+			if(guessCount == 0 && data[0,3] == 0)
 			{
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[guessCount]);
-				data[guessCount] = 0x00;
-				guessCount = 3;
+
+//				data[guessCount] = 0x00;
+				eepromExampleWriteFlag = 1;
+				HAL_Delay(500);
+
+//				guessCount = 3;
+
+//				eepromExampleWriteFlag = 1;
+//				HAL_Delay(500);
 //				LED[0] = 0;
 //				LED[1] = 0;
 //				LED[2] = 0;
