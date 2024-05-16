@@ -43,6 +43,7 @@
 UART_HandleTypeDef hlpuart1;
 
 /* USER CODE BEGIN PV */
+int n;
 uint16_t ButtonState = 0;
 int secretNumber; //random_number 0-9
 uint16_t Number = 0; //button 0-9
@@ -52,9 +53,10 @@ int state = 0; //state Button matrix
 int Button = 0; //ok,clear
 int Button_state_ok = 0; //state ok
 int Button_state_clr = 0; //state clear
-
 int guessNumber = 0; //input number
 int guessCount = 3; //count1-3
+int LED[3] = {0,0,0}; //LED
+
 struct _ButMtx_Struct
 {
 	GPIO_TypeDef* Port;
@@ -138,8 +140,6 @@ int main(void)
 	  	ButtonMatrixRead();
 	}
 	b = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13); //start button
-//	S1 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6); //Ok button
-//	S2 = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5); //clear button
 	if(b == 1 && mode == 0)
 	{
 	  	secretNumber = rand()%9; // Generate a random number between 0 and 9
@@ -423,6 +423,28 @@ void CheckNumber(){
 	}
 }
 void CheckGuess(){
+	if(guessCount == 3){
+		  n = 0;
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n+1]);
+		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n+2]);
+	}
+	else if(guessCount == 2){
+		n = 1;
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n+1]);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n-2]);
+	}
+	else if(guessCount == 1){
+		n = 1;
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, LED[n]);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, LED[n-1]);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, LED[n-2]);
+	}
+
+
+
+
 	if(ButtonState == 128){Button_state_ok = 1;}
 	if(Button_state_ok == 1 && ButtonState == 0){
 
